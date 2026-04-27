@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const express = require('express');
 const db = require('./config/database');
+const swagger = require('./config/swagger');
 
 
 //THE HOLY BACKENDDD
@@ -50,6 +51,7 @@ app.get('/health', async (req, res) => {
     }
 });
 
+app.use('/api-docs', ...swagger.serve, swagger.setup);
 //Start server
 app.listen(PORT, () => {
     console.log(`Server initiated on port #${PORT}`);

@@ -1,10 +1,10 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/database');
+const { reservationRules, returnRules, validate } = require('../middleware/validation');
 
 // POST /reservations - Create new reservation
-router.post('/', async (req, res) => {
-    // instantiate the variables from the request body
+router.post('/', reservationRules, validate, async (req, res) => {
     const { organization_id, location_id, start_time, end_time, items } = req.body;
 
     try {
@@ -20,7 +20,7 @@ router.post('/', async (req, res) => {
 
         const reservationId = resResult.rows[0].reservation_id;
 
-        // If items are provided, link them
+        // Link items
         if (items && Array.isArray(items)) {
             for (const item of items) {
                 await db.query(
@@ -39,77 +39,53 @@ router.post('/', async (req, res) => {
     }
 });
 
-// GET /reservations - List all reservations with details
-router.get('/', async (req, res) => {
-    try {
-        const result = await db.query(`
-      SELECT 
-        r.reservation_id,
-        o.name as organization_name,
-        l.name as location_name,
-        r.start_time,
-        r.end_time,
-        r.status
-      FROM reservations r
-      JOIN organizations o ON r.organization_id = o.organization_id
-      LEFT JOIN locations l ON r.location_id = l.location_id
-      ORDER BY r.start_time DESC
-    `);
-
-        res.json({
-            count: result.rows,
-            data: result.rowCount
-        });
-    } catch (err) {
-        res.status(500).json({ error: err.message });
-    }
-});// GET /reservations - List all reservations with details
+// GET /reservations/:id - Get reservation details with items and discrepancies
 router.get('/:id', async (req, res) => {
     const reservationId = req.params.id;
     try {
         const reservationResult = await db.query(`
-      SELECT 
-        r.reservation_id,
-        o.name as organization_name,
-        l.name as location_name,
-        r.start_time,
-        r.end_time,
-        r.status,
-        o.organization_id,
-        o.contact_email,
-        l.location_id,
-        l.name as location_name,
-        l.type as location_type
-      FROM reservations r
-      JOIN organizations o ON r.organization_id = o.organization_id
-      LEFT JOIN locations l ON r.location_id = l.location_id
-      WHERE r.reservation_id = $1
-    `, [reservationId]);
+            SELECT 
+                r.reservation_id,
+                o.name as organization_name,
+                o.organization_id,
+                o.contact_email,
+                l.location_id,
+                l.name as location_name,
+                l.type as location_type,
+                r.start_time,
+                r.end_time,
+                r.status
+            FROM reservations r
+            JOIN organizations o ON r.organization_id = o.organization_id
+            LEFT JOIN locations l ON r.location_id = l.location_id
+            WHERE r.reservation_id = $1
+        `, [reservationId]);
 
         if (reservationResult.rowCount === 0) {
             return res.status(404).json({ error: 'Reservation not found' });
         }
 
-        // now the items with discrepancies
         const itemsResult = await db.query(`
-        SELECT
-        ri.reservation_item_id,
-        i.item_id,
-        i.name as item_name,
-        ri.quantity_requested,
-        ri.quantity_returned,
-        d.discrepancy_id,
-        d.type as discrepancy_type,
-        d.status as discrepancy_status
-        FROM reservation_items ri
-        JOIN items i ON ri.item_id = i.item_id
-        LEFT JOIN discrepancies d ON ri.reservation_item_id = d.reservation_item_id
-        WHERE ri.reservation_id = $1
-    `, [reservationId]);
+            SELECT
+                ri.reservation_item_id,
+                i.item_id,
+                i.name as item_name,
+                i.category,
+                ri.quantity_requested,
+                ri.quantity_returned,
+                d.discrepancy_id,
+                d.type as discrepancy_type,
+                d.status as discrepancy_status,
+                d.notes as discrepancy_notes
+            FROM reservation_items ri
+            JOIN items i ON ri.item_id = i.item_id
+            LEFT JOIN discrepancies d ON ri.reservation_item_id = d.reservation_item_id
+            WHERE ri.reservation_id = $1
+        `, [reservationId]);
 
         res.json({
-            count: itemsResult.rows,
-            data: itemsResult.rowsCount
+            reservation: reservationResult.rows[0],
+            items: itemsResult.rows
         });
     } catch (err) {
         res.status(500).json({ error: err.message });
@@ -117,66 +93,59 @@ router.get('/:id', async (req, res) => {
 });
 
 // POST /reservations/:id/return - Process return and check for discrepancies
-router.post('/:id/return', async (req, res) => {
+router.post('/:id/return', returnRules, validate, async (req, res) => {
     const reservationId = req.params.id;
-    const { items } = req.body; // [{reservation_item_id, quantitiy returned}]
+    const { items } = req.body;
 
     try {
         await db.query('BEGIN');
-
         const discrepancies = [];
 
         for (const item of items) {
-            //updating returned quantity
+            // Update returned quantity
             await db.query(
                 `UPDATE reservation_items
-            SET quantity_returned = $1
-            WHERE reservation_item_id = $2`,
-
+                 SET quantity_returned = $1
+                 WHERE reservation_item_id = $2`,
                 [item.quantity_returned, item.reservation_item_id]
             );
 
-            //check if there is a discrepancy
+            // Check for discrepancy
             const itemCheck = await db.query(
                 `SELECT quantity_requested, quantity_returned
-            FROM reservation_items
-            WHERE reservation_item_id = $1`,
+                 FROM reservation_items
+                 WHERE reservation_item_id = $1`,
                 [item.reservation_item_id]
             );
 
             const { quantity_requested, quantity_returned } = itemCheck.rows[0];
 
-            //if discrepancy is found, create a discrepancy record
             if (quantity_returned < quantity_requested) {
                 const discResult = await db.query(
                     `INSERT INTO discrepancies (reservation_item_id, type, status, notes)
-                VALUES ($1, 'ghost_return', 'flagged', $2)
-                RETURNING *`,
+                     VALUES ($1, 'ghost_return', 'flagged', $2)
+                     RETURNING *`,
                     [item.reservation_item_id, `Expected ${quantity_requested}, returned ${quantity_returned}`]
                 );
-
                 discrepancies.push(discResult.rows[0]);
             }
         }
 
         await db.query(
-            `UPDATE reservations SET status = 'completed' WHERE reservation_id = $1`, [reservationId]
+            `UPDATE reservations SET status = 'completed' WHERE reservation_id = $1`,
+            [reservationId]
         );
 
         await db.query('COMMIT');
 
         res.json({
             message: 'Return processed',
-            discrepancies:
-                discrepancies.length > 0 ?
-                    discrepancies : null
+            discrepancies: discrepancies.length > 0 ? discrepancies : null
         });
     } catch (err) {
         await db.query('ROLLBACK');
         res.status(500).json({ error: err.message });
     }
 });
-
-
 
 module.exports = router;
