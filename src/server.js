@@ -51,7 +51,11 @@ app.get('/health', async (req, res) => {
     }
 });
 
-app.use('/api-docs', ...swagger.serve, swagger.setup);
+// Swagger Documentation
+app.get('/swagger-spec', (req, res) => {
+    res.json(require('./config/swagger-docs'));
+});
+app.use('/api-docs', swagger.serve, swagger.setup);
 //Start server
 app.listen(PORT, () => {
     console.log(`Server initiated on port #${PORT}`);
