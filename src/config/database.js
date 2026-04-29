@@ -1,20 +1,20 @@
 const { Pool } = require('pg');
 
 const pool = new Pool({
-connectionString:
-process.env.DATABASE_URL,
+    connectionString:
+        process.env.DATABASE_URL,
 });
 
 //error handling within startup connection (test)
-pool.query('SELECT NOW()', (err, res) => 
-{
-if(err) {
-console.error('Database connection failed:', err);
-} else {
-console.log('Database connected at:', res.rows[0].now);}
+pool.query('SELECT NOW()', (err, res) => {
+    if (err) {
+        console.error('Database connection failed:', err);
+    } else {
+        console.log('Database connected at:', res.rows[0].now);
+    }
 });
 
 module.exports = {
-query: (text, params) => pool.query(text, params), 
+    query: (text, params) => pool.query(text, params),
 };
 
