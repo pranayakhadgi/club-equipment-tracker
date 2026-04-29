@@ -18,7 +18,8 @@ const reservationsRouter = require('./routes/reservations');
 app.use('/reservations', reservationsRouter);
 const discrepanciesRouter = require('./routes/discrepancies');
 app.use('/discrepancies', discrepanciesRouter)
-
+const reportsRouter = require('./routes/reports');
+app.use('/reports', reportsRouter)
 //route placeholder
 app.get('/', (req, res) => {
     res.json({ message: 'Equipment Inventory API' });
