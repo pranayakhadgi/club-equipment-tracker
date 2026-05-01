@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Equipment Inventory Dashboard</title>
+    <!-- Yes, you are right! We link the CSS here in the head -->
+    <link rel="stylesheet" href="style.css">
+</head>
+
+<body>
+    <div class="container">
+        <h1>Equipment Inventory Dashboard</h1>
+        <p class="subtitle">Ghost Return Detection & Discrepancy Tracking</p>
+
+        <div id="error"></div>
+
+        <div class="stats" id="stats">
+            <div class="stat-card">
+                <div class="stat-label">Total Discrepancies</div>
+                <div class="stat-value total" id="total-count">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Flagged</div>
+                <div class="stat-value flagged" id="flagged-count">-</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-label">Resolved</div>
+                <div class="stat-value resolved" id="resolved-count">-</div>
+            </div>
+        </div>
+
+        <div id="loading" class="loading">Loading discrepancies...</div>
+
+        <table id="discrepancies-table" style="display: none;">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Organization</th>
+                    <th>Item</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Reported</th>
+                    <th>Notes</th>
+                </tr>
+            </thead>
+            <tbody id="discrepancies-body">
+            </tbody>
+        </table>
+
+        <div class="api-link">
+            <a href="/api-docs" target="_blank">View API Documentation →</a>
+        </div>
+    </div>
+
+    <!-- And we link the JavaScript here at the end of the body -->
+    <script src="script.js"></script>
+</body>
+
+</html>
