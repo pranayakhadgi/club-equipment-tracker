@@ -7,7 +7,10 @@ const swagger = require('./config/swagger');
 
 //THE HOLY BACKENDDD
 const app = express();
-app.use(express.json());//move the mf middleware up here
+app.use(express.json()); // Restored missing JSON middleware
+
+// goal to load the index at root before the api call. 
+app.use(express.static('public'));
 
 const organizationsRouter = require('./routes/organizations');
 app.use('/organizations', organizationsRouter);
